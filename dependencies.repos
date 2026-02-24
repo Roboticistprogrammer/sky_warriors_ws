@@ -1,0 +1,18 @@
+repositories:
+  # PX4 ROS 2 Interface
+  px4_msgs:
+    type: git
+    url: https://github.com/PX4/px4_msgs.git
+    version: release/1.14
+  
+  px4_ros_com:
+    type: git
+    url: https://github.com/PX4/px4_ros_com.git
+    version: release/v1.14
+
+  # Add more external dependencies here as needed
+  # Example:
+  # other_package:
+  #   type: git
+  #   url: https://github.com/organization/repo.git
+  #   version: main

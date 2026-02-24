@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.vscode
+cache/
+
+# Virtual environments
+.venv
+.devcontainer
+Docker
+
+#Build files
+install/
+log/
+scripts/
+config/
+
+#Workspace files
+src/custom_msgs
+src/sky_bringup
+src/skyw_comm
+src/skyw_interfaces
+src/skyw_utils

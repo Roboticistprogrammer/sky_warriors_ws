@@ -1,0 +1,11 @@
+string formation_type      # "line" or "v"
+float32 spacing
+float32 altitude
+float32 rotation           # degrees
+uint8 drone_count
+
+---
+bool success
+
+---
+float32 progress

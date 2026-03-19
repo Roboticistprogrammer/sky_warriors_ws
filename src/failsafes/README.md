@@ -1,46 +1,52 @@
-# Failsafe Testing for Sky Warrior (Gazebo Classic 11)
-# ====================================================
+# Failsafe Testing for Sky Warrior
 
-This folder contains the automated end-to-end failsafe testing architecture for the Sky Warrior drone swarm.
-It uses the MAVSDK Python Failure API interacting with PX4 SITL and Gazebo Classic 11.
+This folder now uses a simple setup with only two scripts:
 
-## Architecture
+- `scripts/failsafe_manager.py` (core MAVSDK helper class)
+- `scripts/mavsdkrunner.py` (interactive test runner)
 
-The failsafe architecture consists of three layers:
+## What each script does
 
-1. **`failsafe_manager.py`**: A core class (`FailsafeManager`) handling MAVSDK connection, parameter configuration (enabling `SYS_FAILURE_EN`), failure injection via `drone.failure.inject()`, health validation, taking off, and telemetry monitoring for transition states (like entering `RETURN_TO_LAUNCH`).
-2. **`failsafe_tests.py`**: A pytest-based suite containing specific test scenarios (GPS failure, Battery critical, RC Loss, sensor degraded states). Each test relies on the `FailsafeManager` to automate the process (Setup -> Inject -> Detect -> Verify -> Recover).
-3. **`run_failsafe_tests.py`**: A CLI runner to trigger all or specific tests without needing to invoke `pytest` manually.
+### `failsafe_manager.py`
+Handles all low-level MAVSDK actions:
+- connect to PX4
+- enable `SYS_FAILURE_EN`
+- arm and take off
+- inject and restore failures
+- wait for flight mode changes like `RETURN_TO_LAUNCH` and `LAND`
 
-### Auxiliary Components
-- **`parameters/failsafe_config.yaml`**: Centralized configuration handling PX4 failure parameters and default test timeouts.
-- **`failsafe_monitor_ros2.py`**: A passive ROS2 node that listens to PX4's topics (like `/fmu/out/vehicle_status`) to log structured JSON events when failsafe state transitions occur.
+### `mavsdkrunner.py`
+Shows a menu of failure scenarios and runs them step-by-step.
 
-## Quick Start (Automated Testing)
+## Quick start
 
-### 1. Prerequisites
-- `pip install mavsdk pytest pyyaml`
-- Ensure Gazebo Classic 11 (`gazebo`) and PX4 SITL (`make px4_sitl gazebo-classic`) are launched, and a drone is spawned.
-
-### 2. Run Tests
-Use the provided CLI tool inside `scripts/`:
+1. Start your Gazebo/PX4 simulation.
+2. Go to:
 
 ```bash
 cd ~/sky_warriors_ws/src/failsafes/scripts
-python3 run_failsafe_tests.py --all
 ```
 
-To run a specific test:
+3. Run:
+
 ```bash
-python3 run_failsafe_tests.py --test gps_loss
+python3 mavsdkrunner.py
 ```
 
-To list tests:
-```bash
-python3 run_failsafe_tests.py --list
-```
+4. Pick a test from the menu.
 
-## Important Considerations (Gazebo Classic 11)
-- The scripts connect by default to `udpin://0.0.0.0:14540`.
-- The `SYS_FAILURE_EN` parameter **must** be set to `1` in PX4. The `FailsafeManager` attempts to set this automatically during connection setup.
-- MAVSDK's `failure.inject(FailureUnit, FailureType)` is a blocking call. If `SYS_FAILURE_EN` is 0, the injection call will timeout. The test suite handles this gracefully by wrapping the call in an `asyncio.timeout`.
+## Important notes
+
+- Default connection in runner is `udpin://0.0.0.0:14541`.
+- `SYS_FAILURE_EN` must be `1` (the manager tries to enable it).
+- Some failures are not supported by all PX4 builds. If unsupported, the run is skipped safely.
+
+## Multi-drone RTL landing zones (skyw_multi_lz_world)
+
+For Gazebo Harmonic `skyw_multi_lz_world`, these LZ coordinates are used:
+
+- Drone `0` -> `(0, 0)`
+- Drone `1` -> `(4, 3)`
+- Drone `2` -> `(8, 0)`
+
+So when RTL is triggered, each drone returns to its own landing zone.

@@ -11,14 +11,14 @@
 # https://gazebosim.org/api/sim/8/server_config.html
 # -----------------------------------------------------------------------
 
-export PX4_GZ_MODELS=/home/roboticistprogrammer/PX4-Autopilot/Tools/simulation/gz/models
-export PX4_GZ_WORLDS=/home/roboticistprogrammer/PX4-Autopilot/Tools/simulation/gz/worlds
-export PX4_GZ_PLUGINS=/home/roboticistprogrammer/PX4-Autopilot/build/px4_sitl_default/src/modules/simulation/gz_plugins
-export PX4_GZ_SERVER_CONFIG=/home/roboticistprogrammer/PX4-Autopilot/src/modules/simulation/gz_bridge/server.config
+export PX4_GZ_MODELS=${HOME}/PX4-Autopilot/Tools/simulation/gz/models
+export PX4_GZ_WORLDS=${HOME}/PX4-Autopilot/Tools/simulation/gz/worlds
+export PX4_GZ_PLUGINS=${HOME}/PX4-Autopilot/build/px4_sitl_default/src/modules/simulation/gz_plugins
+export PX4_GZ_SERVER_CONFIG=${HOME}/PX4-Autopilot/src/modules/simulation/gz_bridge/server.config
 
 # Add custom world directory
 export CUSTOM_WORLD_DIR=$(dirname $(readlink -f $BASH_SOURCE))/world
 
-export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:$CUSTOM_WORLD_DIR
-export GZ_SIM_SYSTEM_PLUGIN_PATH=$GZ_SIM_SYSTEM_PLUGIN_PATH:$PX4_GZ_PLUGINS
+export GZ_SIM_RESOURCE_PATH=${GZ_SIM_RESOURCE_PATH:-}:$PX4_GZ_MODELS:$PX4_GZ_WORLDS:$CUSTOM_WORLD_DIR
+export GZ_SIM_SYSTEM_PLUGIN_PATH=${GZ_SIM_SYSTEM_PLUGIN_PATH:-}:$PX4_GZ_PLUGINS
 export GZ_SIM_SERVER_CONFIG_PATH=$PX4_GZ_SERVER_CONFIG

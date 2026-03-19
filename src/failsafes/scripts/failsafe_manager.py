@@ -164,7 +164,7 @@ class FailsafeManager:
     async def upload_triangle_mission(self, altitude: float = 10.0, speed: float = 5.0):
         """Uploads a standard 3-point triangle mission suitable for failsafe tracking."""
         from mavsdk.mission import MissionItem, MissionPlan
-        # Altitude is relative to launch. 
+        # Altitude is relative to launch.
         m1 = MissionItem(47.39803986, 8.54557254, altitude, speed, True, float('nan'), float('nan'), MissionItem.CameraAction.NONE, float('nan'), float('nan'), float('nan'), float('nan'), float('nan'), MissionItem.VehicleAction.NONE)
         m2 = MissionItem(47.39803622, 8.54501464, altitude, speed, True, float('nan'), float('nan'), MissionItem.CameraAction.NONE, float('nan'), float('nan'), float('nan'), float('nan'), float('nan'), MissionItem.VehicleAction.NONE)
         m3 = MissionItem(47.39782562, 8.54500928, altitude, speed, True, float('nan'), float('nan'), MissionItem.CameraAction.NONE, float('nan'), float('nan'), float('nan'), float('nan'), float('nan'), MissionItem.VehicleAction.NONE)

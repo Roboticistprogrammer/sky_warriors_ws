@@ -1,52 +1,73 @@
 # Failsafe Testing for Sky Warrior
 
-This folder now uses a simple setup with only two scripts:
+This directory supports both manual and automated PX4/MAVSDK failure injection testing.
 
-- `scripts/failsafe_manager.py` (core MAVSDK helper class)
-- `scripts/mavsdkrunner.py` (interactive test runner)
+## Scripts
 
-## What each script does
+- `scripts/failsafe_manager.py`: core MAVSDK helper class used by automated tests.
+- `scripts/mavsdkrunner.py`: **manual** PX4 shell command runner.
+- `scripts/mavsdkrunner_automated.py`: **automated** mission-based failure scenario runner.
 
-### `failsafe_manager.py`
-Handles all low-level MAVSDK actions:
-- connect to PX4
-- enable `SYS_FAILURE_EN`
-- arm and take off
-- inject and restore failures
-- wait for flight mode changes like `RETURN_TO_LAUNCH` and `LAND`
+## 1) Launch SITL (required for both modes)
 
-### `mavsdkrunner.py`
-Shows a menu of failure scenarios and runs them step-by-step.
-
-## Quick start
-
-1. Start your Gazebo/PX4 simulation.
-2. Go to:
+From repository root:
 
 ```bash
-cd ~/sky_warriors_ws/src/failsafes/scripts
+cd /home/skywarrior/Projects/mavsdk-api-failsafe
+./src/launch_classic_3_iris_lz.sh
 ```
 
-3. Run:
+This launches 3 PX4 SITL instances and Gazebo Classic.
+
+## 2) Manual Failure Injection Testing
+
+Open a second terminal and run:
 
 ```bash
-python3 mavsdkrunner.py
+cd /home/skywarrior/Projects/mavsdk-api-failsafe
+python3 src/failsafes/scripts/mavsdkrunner.py --ports 14541,14542,14543
 ```
 
-4. Pick a test from the menu.
+Inside `px4-manual>` run:
 
-## Important notes
+```text
+:targets
+param set SYS_FAILURE_EN 1
+param show SYS_FAILURE_EN
+failure gps off
+failure gps ok
+```
 
-- Default connection in runner is `udpin://0.0.0.0:14541`.
-- `SYS_FAILURE_EN` must be `1` (the manager tries to enable it).
-- Some failures are not supported by all PX4 builds. If unsupported, the run is skipped safely.
+### Manual runner control commands
 
-## Multi-drone RTL landing zones (skyw_multi_lz_world)
+- `:targets` list connected drones.
+- `:use drone0` / `:use drone1` / `:use drone2` target one drone.
+- `:use all` broadcast to all connected drones.
+- `:help` print runner help.
+- `:exit` exit the runner.
 
-For Gazebo Harmonic `skyw_multi_lz_world`, these LZ coordinates are used:
+## 3) Automated Failure Injection Testing
+
+Open another terminal and run:
+
+```bash
+cd /home/skywarrior/Projects/mavsdk-api-failsafe/src/failsafes/scripts
+python3 mavsdkrunner_automated.py
+```
+
+Then choose a scenario from the menu (GPS, baro, RC link, etc.). The runner uses MAVSDK Failure API and validates expected failsafe mode changes.
+
+## Notes
+
+- Manual runner default ports are `14541,14542,14543` (matching the current 3-drone SITL launch).
+- Automated runner default MAVSDK connection is `udpin://0.0.0.0:14541`.
+- `SYS_FAILURE_EN` must be `1` for both manual `failure ...` commands and MAVSDK failure injection.
+- Some failure types may be unsupported by specific PX4 builds/simulator combinations.
+
+## Multi-drone RTL landing zones
+
+Landing zone mapping in this setup:
 
 - Drone `0` -> `(0, 0)`
 - Drone `1` -> `(4, 3)`
 - Drone `2` -> `(8, 0)`
-
-So when RTL is triggered, each drone returns to its own landing zone.

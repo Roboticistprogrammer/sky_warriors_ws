@@ -1,149 +1,277 @@
 #!/usr/bin/env python3
-import asyncio
-import logging
+"""Manual PX4 shell runner for multi-drone failsafe testing."""
+
+from __future__ import annotations
+
+import argparse
 import sys
-import os
+import time
+from dataclasses import dataclass
+from typing import Dict, Iterable, List
 
-from failsafe_manager import FailsafeManager
-from mavsdk.failure import FailureUnit, FailureType
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("Runner")
-
-# Mapping of all 15 components to their primary catastrophic failure types and expected modes.
-SCENARIOS = {
-    1: {"name": "SENSOR_GPS", "unit": FailureUnit.SENSOR_GPS, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    2: {"name": "SENSOR_BARO", "unit": FailureUnit.SENSOR_BARO, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    3: {"name": "SENSOR_GYRO", "unit": FailureUnit.SENSOR_GYRO, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    4: {"name": "SENSOR_ACCEL", "unit": FailureUnit.SENSOR_ACCEL, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    5: {"name": "SENSOR_MAG", "unit": FailureUnit.SENSOR_MAG, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    6: {"name": "SENSOR_OPTICAL_FLOW", "unit": FailureUnit.SENSOR_OPTICAL_FLOW, "type": FailureType.OFF, "expected": None},
-    7: {"name": "SENSOR_VIO", "unit": FailureUnit.SENSOR_VIO, "type": FailureType.OFF, "expected": None},
-    8: {"name": "SENSOR_DISTANCE_SENSOR", "unit": FailureUnit.SENSOR_DISTANCE_SENSOR, "type": FailureType.OFF, "expected": None},
-    9: {"name": "SENSOR_AIRSPEED", "unit": FailureUnit.SENSOR_AIRSPEED, "type": FailureType.OFF, "expected": None},
-    10: {"name": "SYSTEM_BATTERY", "unit": FailureUnit.SYSTEM_BATTERY, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH", "LAND"]},
-    11: {"name": "SYSTEM_MOTOR", "unit": FailureUnit.SYSTEM_MOTOR, "type": FailureType.OFF, "expected": ["LAND"]},
-    12: {"name": "SYSTEM_SERVO", "unit": FailureUnit.SYSTEM_SERVO, "type": FailureType.OFF, "expected": None},
-    13: {"name": "SYSTEM_AVOIDANCE", "unit": FailureUnit.SYSTEM_AVOIDANCE, "type": FailureType.OFF, "expected": None},
-    14: {"name": "SYSTEM_RC_SIGNAL", "unit": FailureUnit.SYSTEM_RC_SIGNAL, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH"]},
-    15: {"name": "SYSTEM_MAVLINK_SIGNAL", "unit": FailureUnit.SYSTEM_MAVLINK_SIGNAL, "type": FailureType.OFF, "expected": ["RETURN_TO_LAUNCH"]},
-}
-
-def print_menu():
-    print("\n=======================================================")
-    print("        MAVSDK Failsafe Interactive Runner")
-    print("=======================================================")
-    print("Please choose the component you want to test:\n")
-    for key in sorted(SCENARIOS.keys()):
-        cfg = SCENARIOS[key]
-        print(f"  [{key}] Test {cfg['name']} Failure")
-    print("\n  [0] Exit")
-    print("=======================================================")
-
-async def execute_test(manager: FailsafeManager, config: dict):
-    unit = config["unit"]
-    f_type = config["type"]
-    expected_modes = config["expected"]
-
-    # 1. Start Official Mission Tracker sequence
-    print(f"\n[EXECUTION] Opting into Mission Dynamics for {config['name']}...", flush=True)
-    await manager.upload_triangle_mission(altitude=10.0, speed=5.0)
-    reached = await manager.start_and_track_mission(target_item=1)
-    
-    if not reached:
-        logger.error("Failed to reach Waypoint 1. Aborting test.")
-        return False
-
-    # 2. Inject Failure
-    print(f"\n[INJECTION] Drone reached Waypoint 1! Ripping {config['name']} offline now!", flush=True)
-    success = await manager.inject_failure(unit, f_type)
-    if not success:
-        # FailsafeManager logs unsupported warnings internally now
-        return False
-
-    # 3. Assert Results dynamically
-    if expected_modes:
-        print(f"\n[ASSERTION] Monitoring autopilot to intercept fallback to: {expected_modes}...", flush=True)
-        triggered = False
-        for mode in expected_modes:
-            triggered = await manager.wait_for_flight_mode(mode, timeout=30.0)
-            if triggered:
-                print(f"[SUCCESS] Intercepted expected flight mode: {mode}!", flush=True)
-                break
-        
-        if not triggered:
-            print(f"[FAILURE] Drone did not enter any expected failsafe modes: {expected_modes}!", flush=True)
-            return False
-    else:
-        print("\n[ASSERTION] This is a non-critical component. Observing flight stability for 15s...", flush=True)
-        await asyncio.sleep(15)
-        print("[SUCCESS] Drone remained stable after non-critical failure.", flush=True)
-
-    print(f"\n[RECOVERY] Restoring {config['name']} back online...", flush=True)
-    await manager.restore_failure(unit)
-    return True
+try:
+    from pymavlink import mavutil
+except ImportError as exc:  # pragma: no cover - runtime environment dependency
+    print(f"Failed to import pymavlink: {exc}")
+    print("Install it with: pip3 install --user pymavlink")
+    sys.exit(1)
 
 
-async def main():
-    while True:
-        print_menu()
-        try:
-            choice = input("Enter your choice [0-15]: ").strip()
-            if not choice:
+SERIAL_DEVICE_SHELL = 10
+SERIAL_PAYLOAD_BYTES = 70
+# launch_classic_3_iris_lz.sh starts sitl_multiple_run with "iris:1:..."
+# which maps the three PX4 MAVLink UDP ports to 14541, 14542, 14543.
+DEFAULT_PORTS = (14541, 14542, 14543)
+
+
+@dataclass(frozen=True)
+class Target:
+    name: str
+    port: int
+
+
+class Px4ShellClient:
+    def __init__(self, target: Target, baudrate: int = 57600):
+        self.target = target
+        self.baudrate = baudrate
+        self._mav = None
+
+    @property
+    def label(self) -> str:
+        return f"{self.target.name}:{self.target.port}"
+
+    def connect(self, timeout_s: float) -> None:
+        connection_uri = f"udpin:0.0.0.0:{self.target.port}"
+        self._mav = mavutil.mavlink_connection(connection_uri, autoreconnect=True, baud=self.baudrate)
+        self._mav.mav.heartbeat_send(
+            mavutil.mavlink.MAV_TYPE_GENERIC,
+            mavutil.mavlink.MAV_AUTOPILOT_INVALID,
+            0,
+            0,
+            0,
+        )
+        self._mav.wait_heartbeat(timeout=timeout_s)
+        self.send_raw("\n")
+        self.read_output(max_wait_s=1.0, idle_timeout_s=0.2)
+
+    def close(self) -> None:
+        if self._mav is not None:
+            self._mav.mav.serial_control_send(SERIAL_DEVICE_SHELL, 0, 0, 0, 0, [0] * SERIAL_PAYLOAD_BYTES)
+
+    def send_raw(self, text: str) -> None:
+        if self._mav is None:
+            raise RuntimeError(f"Target {self.label} is not connected")
+
+        data = text.encode("utf-8", errors="ignore")
+        index = 0
+        while index < len(data):
+            chunk = data[index : index + SERIAL_PAYLOAD_BYTES]
+            payload = list(chunk) + [0] * (SERIAL_PAYLOAD_BYTES - len(chunk))
+            self._mav.mav.serial_control_send(
+                SERIAL_DEVICE_SHELL,
+                mavutil.mavlink.SERIAL_CONTROL_FLAG_EXCLUSIVE
+                | mavutil.mavlink.SERIAL_CONTROL_FLAG_RESPOND,
+                0,
+                0,
+                len(chunk),
+                payload,
+            )
+            index += len(chunk)
+
+    def run_command(self, command: str, response_timeout_s: float) -> str:
+        self.send_raw(command.rstrip() + "\n")
+        return self.read_output(max_wait_s=response_timeout_s, idle_timeout_s=0.25)
+
+    def read_output(self, max_wait_s: float, idle_timeout_s: float) -> str:
+        if self._mav is None:
+            return ""
+
+        start = time.monotonic()
+        last_data = None
+        chunks: List[str] = []
+
+        while time.monotonic() - start < max_wait_s:
+            msg = self._mav.recv_match(type="SERIAL_CONTROL", blocking=True, timeout=0.05)
+            if msg and getattr(msg, "count", 0) > 0:
+                data = msg.data[: msg.count]
+                chunks.append(bytes(data).decode("utf-8", errors="replace"))
+                last_data = time.monotonic()
                 continue
-            choice_idx = int(choice)
-        except ValueError:
-            print("\n>> Invalid input! Please enter a number.\n")
-            continue
 
-        if choice_idx == 0:
-            print("Exiting runner...")
-            break
-        elif choice_idx not in SCENARIOS:
-            print("\n>> Invalid choice! Please select a valid test number.\n")
-            continue
+            if last_data is not None and (time.monotonic() - last_data) >= idle_timeout_s:
+                break
 
-        selected_config = SCENARIOS[choice_idx]
-        print(f"\n[SETUP] Spinning up test for {selected_config['name']}...")
-        
-        # We target Drone 1 (14541) exactly like run_all_tests.py did against the walls simulation
-        manager = FailsafeManager("udpin://0.0.0.0:14541")
+        return "".join(chunks).strip()
+
+
+def parse_ports(raw: str) -> List[int]:
+    ports: List[int] = []
+    for item in raw.split(","):
+        token = item.strip()
+        if not token:
+            continue
+        port = int(token)
+        if port <= 0:
+            raise ValueError(f"Invalid port: {token}")
+        ports.append(port)
+    if not ports:
+        raise ValueError("No ports provided")
+    return ports
+
+
+def build_targets(ports: Iterable[int]) -> List[Target]:
+    return [Target(name=f"drone{idx}", port=port) for idx, port in enumerate(ports)]
+
+
+def print_help() -> None:
+    print("\nRunner commands:")
+    print("  :help                 Show this help")
+    print("  :targets              Show known/connected PX4 targets")
+    print("  :use all              Send shell commands to all connected targets")
+    print("  :use <name|index|port> Send shell commands to one target")
+    print("  :exit                 Exit runner")
+    print("")
+    print("Any non-':' input is sent to PX4 shell directly.")
+    print("Examples:")
+    print("  param set SYS_FAILURE_EN 1")
+    print("  failure gps off")
+    print("  failure gps ok")
+
+
+def resolve_selection(token: str, clients: Dict[str, Px4ShellClient]) -> List[Px4ShellClient]:
+    key = token.strip().lower()
+    if key == "all":
+        return list(clients.values())
+
+    if key in clients:
+        return [clients[key]]
+
+    if key.isdigit():
+        by_index = f"drone{int(key)}"
+        if by_index in clients:
+            return [clients[by_index]]
+        by_port = next((client for client in clients.values() if client.target.port == int(key)), None)
+        if by_port is not None:
+            return [by_port]
+
+    raise ValueError(f"Unknown target selector: {token}")
+
+
+def print_targets(clients: Dict[str, Px4ShellClient]) -> None:
+    print("\nConnected targets:")
+    for name, client in clients.items():
+        print(f"  - {name} (port {client.target.port})")
+
+
+def run_repl(clients: Dict[str, Px4ShellClient], response_timeout_s: float) -> int:
+    selected: List[Px4ShellClient] = list(clients.values())
+    print("\nMAVSDK Manual PX4 Command Runner")
+    print("Type ':help' for runner commands.")
+    print("Default target: all connected PX4 instances.\n")
+
+    while True:
         try:
-            await manager.connect()
-            await manager.enable_failure_injection()
-            await manager.start_telemetry_monitor()
+            raw = input("px4-manual> ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting runner...")
+            return 0
 
-            # Execute arm and takeoff (which waits for GPS lock now)
-            await manager.arm_and_takeoff(altitude=10.0)
-            
-            # Run the test logic block
-            test_passed = await execute_test(manager, selected_config)
-            
-            if test_passed:
-                print(f"\n✅ TEST PASSED: {selected_config['name']} Failsafe\n")
-            else:
-                print(f"\n❌ TEST FAILED OR SKIPPED: {selected_config['name']} Failsafe\n")
+        if not raw:
+            continue
 
-        except Exception as e:
-            logger.error(f"Test crashed with exception: {e}")
-            
-        finally:
-            print("\n[TEARDOWN] Landing safely and releasing UDP connections...", flush=True)
+        if raw.startswith(":"):
+            command = raw[1:].strip()
+            if command in {"exit", "quit"}:
+                print("Exiting runner...")
+                return 0
+            if command == "help":
+                print_help()
+                continue
+            if command == "targets":
+                print_targets(clients)
+                continue
+            if command.startswith("use "):
+                selector = command[4:].strip()
+                try:
+                    selected = resolve_selection(selector, clients)
+                except ValueError as exc:
+                    print(f"[runner] {exc}")
+                    continue
+                label = "all" if len(selected) > 1 else selected[0].label
+                print(f"[runner] Selected target: {label}")
+                continue
+            print(f"[runner] Unknown runner command: {raw}")
+            print("[runner] Try ':help'")
+            continue
+
+        for client in selected:
+            print(f"\n[{client.label}] $ {raw}")
             try:
-                await manager.drone.action.land()
-                await manager.wait_for_landed(timeout=60.0)
-            except Exception as e:
-                logger.error(f"Teardown landing error: {e}")
-            await manager.disconnect()
+                output = client.run_command(raw, response_timeout_s=response_timeout_s)
+            except Exception as exc:  # pragma: no cover - runtime network error
+                print(f"[{client.label}] ERROR: {exc}")
+                continue
 
-        input("\nPress Enter to return to the Main Menu...")
+            if output:
+                print(output)
+            else:
+                print(f"[{client.label}] (no output)")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Manual PX4 shell command runner for failsafe testing on multi-drone SITL."
+    )
+    parser.add_argument(
+        "--ports",
+        default=",".join(str(p) for p in DEFAULT_PORTS),
+        help=f"Comma-separated PX4 MAVLink UDP ports (default: {','.join(str(p) for p in DEFAULT_PORTS)})",
+    )
+    parser.add_argument(
+        "--connect-timeout",
+        type=float,
+        default=8.0,
+        help="Heartbeat wait timeout per target in seconds (default: 8.0)",
+    )
+    parser.add_argument(
+        "--response-timeout",
+        type=float,
+        default=2.5,
+        help="Command output collection window in seconds (default: 2.5)",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        ports = parse_ports(args.ports)
+    except ValueError as exc:
+        print(f"Invalid --ports value: {exc}")
+        return 2
+
+    clients: Dict[str, Px4ShellClient] = {}
+    for target in build_targets(ports):
+        client = Px4ShellClient(target)
+        print(f"[connect] {client.label} ...", end="", flush=True)
+        try:
+            client.connect(timeout_s=args.connect_timeout)
+        except Exception as exc:  # pragma: no cover - runtime network error
+            print(f" failed ({exc})")
+            continue
+        print(" connected")
+        clients[target.name] = client
+
+    if not clients:
+        print("No PX4 targets connected. Make sure launch_classic_3_iris_lz.sh is running.")
+        return 1
+
+    try:
+        return run_repl(clients, response_timeout_s=args.response_timeout)
+    finally:
+        for client in clients.values():
+            client.close()
+
 
 if __name__ == "__main__":
-    # Workaround for Python 3.10 event loop issues
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        print("\nExiting runner...")
-        
+    raise SystemExit(main())

@@ -6,6 +6,7 @@ This project now keeps a small failsafe test setup.
 
 - `scripts/failsafe_manager.py`
 - `scripts/mavsdkrunner.py`
+- `scripts/mavsdkrunner_automated.py`
 
 ## Basic workflow
 
@@ -14,11 +15,28 @@ This project now keeps a small failsafe test setup.
 
 ```bash
 cd ~/sky_warriors_ws/src/failsafes/scripts
+```
+
+3. For manual/global PX4 shell commands:
+
+```bash
 python3 mavsdkrunner.py
 ```
 
-3. Choose a failure from the menu.
-4. Watch how PX4 reacts (`RETURN_TO_LAUNCH`, `LAND`, etc.).
+4. Run commands such as:
+
+```bash
+param set SYS_FAILURE_EN 1
+failure gps off
+```
+
+5. For automated mission + failure test scenarios:
+
+```bash
+python3 mavsdkrunner_automated.py
+```
+
+6. Choose a failure from the menu and watch how PX4 reacts (`RETURN_TO_LAUNCH`, `LAND`, etc.).
 
 ## What the manager handles for you
 

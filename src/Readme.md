@@ -17,7 +17,7 @@ This directory contains ROS 2 packages for the Sky Warrior multi-drone system. E
 
 To get started with the simulation:
 
-1. Use `skyw_simulation` to spawn 3 drones in Gazebo Garden
+1. From `src/`, run `./launch_gz_px4_sitl.sh 3 x500` to start Gazebo Harmonic + PX4 SITL and spawn 3 drones
 2. Run the Micro-XRCE-DDS Agent to connect ROS 2 and QGroundControl to the UAVs
 3. Launch the desired control or detection package
 

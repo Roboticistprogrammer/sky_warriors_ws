@@ -10,8 +10,26 @@ class FormationClient(Node):
     def __init__(self):
         super().__init__('formation_client')
         self._client = ActionClient(self, SetFormation, 'set_formation')
+        self.declare_parameter("formation_type", "arrow_head")
+        self.declare_parameter("spacing", 2.0)
+        self.declare_parameter("altitude", 3.0)
+        self.declare_parameter("rotation", 0.0)
+        self.declare_parameter("drone_count", 3)
+        if not self.has_parameter("use_sim_time"):
+            self.declare_parameter("use_sim_time", False)
 
-    def send_goal(self, formation_type='v', spacing=2.0, altitude=3.0, rotation=0.0, drone_count=2):
+    def send_goal(self, formation_type=None, spacing=None, altitude=None, rotation=None, drone_count=None):
+        if formation_type is None:
+            formation_type = self.get_parameter("formation_type").value
+        if spacing is None:
+            spacing = self.get_parameter("spacing").value
+        if altitude is None:
+            altitude = self.get_parameter("altitude").value
+        if rotation is None:
+            rotation = self.get_parameter("rotation").value
+        if drone_count is None:
+            drone_count = self.get_parameter("drone_count").value
+
         self.get_logger().info('Waiting for action server...')
         self._client.wait_for_server()
         

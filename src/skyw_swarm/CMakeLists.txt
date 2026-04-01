@@ -23,15 +23,30 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 # Install Python executables
 install(PROGRAMS
-  action/formation_server.py
-  action/formation_client.py
-  action/px4_pose_bridge.py
+  skyw_swarm/formation_server.py
+  skyw_swarm/formation_client.py
+  skyw_swarm/px4_pose_bridge.py
+  skyw_swarm/formation_math.py
+  skyw_swarm/swarm_controller.py
+  skyw_swarm/px4_offboard_bridge.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # Install action files
 install(DIRECTORY
   action
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install config files
+install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install launch files
+install(DIRECTORY
+  launch
   DESTINATION share/${PROJECT_NAME}
 )
 

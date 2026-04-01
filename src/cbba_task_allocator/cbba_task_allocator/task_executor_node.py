@@ -1,10 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from std_msgs.msg import String
 
 from skyw_interfaces.msg import Task, Award, TaskStatus
 from skyw_swarm.action import SetFormation
-from cbba_task_allocator.constants import TASK_FORMATION_CHANGE, TASK_WAIT
+from cbba_task_allocator.constants import TASK_FORMATION_CHANGE, TASK_REMOVE_MEMBER, TASK_WAIT
 
 
 class TaskExecutorNode(Node):
@@ -18,27 +19,34 @@ class TaskExecutorNode(Node):
         self.declare_parameter('award_topic', '/cbba/awards')
         self.declare_parameter('task_status_topic', '/cbba/task_status')
         self.declare_parameter('formation_action_name', 'set_formation')
+        self.declare_parameter('fsm_state_topic', '/cbba/fsm_state')
+        self.declare_parameter('remove_complete_s', 1.0)
 
         self.agent_id = int(self.get_parameter('agent_id').value)
         self.drone_count = int(self.get_parameter('drone_count').value)
         self.default_wait_s = float(self.get_parameter('default_wait_s').value)
+        self.remove_complete_s = float(self.get_parameter('remove_complete_s').value)
 
         self.task_topic = self.get_parameter('task_topic').value
         self.award_topic = self.get_parameter('award_topic').value
         self.task_status_topic = self.get_parameter('task_status_topic').value
         self.formation_action_name = self.get_parameter('formation_action_name').value
+        self.fsm_state_topic = self.get_parameter('fsm_state_topic').value
 
         self.tasks = {}
         self.active_task_id = 0
         self.wait_timer = None
+        self.remove_timer = None
 
         self.status_pub = self.create_publisher(TaskStatus, self.task_status_topic, 10)
+        self.fsm_pub = self.create_publisher(String, self.fsm_state_topic, 10)
         self.create_subscription(Task, self.task_topic, self.task_cb, 10)
         self.create_subscription(Award, self.award_topic, self.award_cb, 10)
 
         self.formation_client = ActionClient(self, SetFormation, self.formation_action_name)
 
         self.get_logger().info('Task executor node ready')
+        self.publish_fsm('IDLE')
 
     def _now(self) -> float:
         return self.get_clock().now().nanoseconds / 1e9
@@ -47,7 +55,8 @@ class TaskExecutorNode(Node):
         self.tasks[int(msg.task_id)] = msg
 
     def award_cb(self, msg: Award) -> None:
-        if int(msg.winner_agent_id) != self.agent_id:
+        assigned = [int(a) for a in msg.assigned_agent_ids]
+        if self.agent_id not in assigned and int(msg.winner_agent_id) != self.agent_id:
             return
 
         task_id = int(msg.task_id)
@@ -64,12 +73,19 @@ class TaskExecutorNode(Node):
         self.publish_status(task_id, 0, 'executing')
 
         if int(task.task_type) == TASK_FORMATION_CHANGE:
+            self.publish_fsm('EXECUTING_FORMATION')
             self.execute_formation(task)
+        elif int(task.task_type) == TASK_REMOVE_MEMBER:
+            self.publish_fsm('EXECUTING_REMOVE_MEMBER')
+            self.execute_remove_member(task)
         elif int(task.task_type) == TASK_WAIT:
+            self.publish_fsm('WAITING')
             self.execute_wait(task)
         else:
             self.publish_status(task_id, 2, 'unsupported task type')
+            self.publish_fsm('FAILED')
             self.active_task_id = 0
+            self.publish_fsm('IDLE')
 
     def execute_formation(self, task: Task) -> None:
         if not self.formation_client.wait_for_server(timeout_sec=2.0):
@@ -91,7 +107,9 @@ class TaskExecutorNode(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.publish_status(self.active_task_id, 2, 'formation goal rejected')
+            self.publish_fsm('FAILED')
             self.active_task_id = 0
+            self.publish_fsm('IDLE')
             return
 
         result_future = goal_handle.get_result_async()
@@ -101,9 +119,28 @@ class TaskExecutorNode(Node):
         result = future.result().result
         if result.success:
             self.publish_status(self.active_task_id, 1, 'formation complete')
+            self.publish_fsm('COMPLETED')
         else:
             self.publish_status(self.active_task_id, 2, 'formation failed')
+            self.publish_fsm('FAILED')
         self.active_task_id = 0
+        self.publish_fsm('IDLE')
+
+    def execute_remove_member(self, task: Task) -> None:
+        _ = task
+        if self.remove_timer is not None:
+            self.remove_timer.cancel()
+            self.remove_timer = None
+        self.remove_timer = self.create_timer(max(0.1, self.remove_complete_s), self._remove_done_cb)
+
+    def _remove_done_cb(self) -> None:
+        if self.remove_timer is not None:
+            self.remove_timer.cancel()
+            self.remove_timer = None
+        self.publish_status(self.active_task_id, 1, 'remove-member complete')
+        self.publish_fsm('COMPLETED')
+        self.active_task_id = 0
+        self.publish_fsm('IDLE')
 
     def execute_wait(self, task: Task) -> None:
         wait_s = self.default_wait_s
@@ -116,7 +153,9 @@ class TaskExecutorNode(Node):
             self.wait_timer.cancel()
             self.wait_timer = None
         self.publish_status(self.active_task_id, 1, 'wait complete')
+        self.publish_fsm('COMPLETED')
         self.active_task_id = 0
+        self.publish_fsm('IDLE')
 
     def publish_status(self, task_id: int, status: int, info: str) -> None:
         msg = TaskStatus()
@@ -126,6 +165,11 @@ class TaskExecutorNode(Node):
         msg.info = str(info)
         msg.update_time = self._now()
         self.status_pub.publish(msg)
+
+    def publish_fsm(self, state: str) -> None:
+        msg = String()
+        msg.data = f'agent={self.agent_id} task={self.active_task_id} state={state}'
+        self.fsm_pub.publish(msg)
 
 
 def main():

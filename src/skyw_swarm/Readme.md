@@ -4,6 +4,8 @@ colcon build --packages-select skyw_swarm
 source install/setup.bash
 
 # Run (3 terminals required)
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
 
 ## Terminal 1: PX4 Pose Bridge
 ros2 run skyw_swarm px4_pose_bridge.py
@@ -37,3 +39,43 @@ ros2 run skyw_swarm formation_server.py --ros-args -p drone_count:=2
 Terminal3
 source install/setup.bash
 ros2 run skyw_swarm formation_client.py
+
+# Examples
+
+ros2 action send_goal /set_formation skyw_swarm/action/SetFormation "{formation_type: 'line', spacing: 2.0, altitude: 2.0, rotation: 0.0, drone_count: 3}"
+ros2 action send_goal /set_formation skyw_swarm/action/SetFormation "{formation_type: 'v', spacing: 2.0, altitude: 2.0, rotation: 0.0, drone_count: 3}"
+ros2 action send_goal /set_formation skyw_swarm/action/SetFormation "{formation_type: 'arrow_head', spacing: 2.0, altitude: 2.0, rotation: 0.0, drone_count: 3}"
+
+# YAML config usage
+ros2 run skyw_swarm formation_server.py --ros-args --params-file $(ros2 pkg prefix skyw_swarm)/share/skyw_swarm/config/formation.yaml
+ros2 run skyw_swarm formation_client.py --ros-args --params-file $(ros2 pkg prefix skyw_swarm)/share/skyw_swarm/config/formation.yaml
+
+# Launch-file workflow (recommended)
+ros2 launch skyw_swarm swarm_launch.py
+
+# Behavior-only launch (Aerostack2-style)
+ros2 launch skyw_swarm swarm_behavior.launch.py
+
+# Offboard bridge launch (PX4 setpoints)
+ros2 launch skyw_swarm swarm_offboard.launch.py
+
+# Launch with YAML + client auto-start
+ros2 launch skyw_swarm swarm_launch.py \
+	params_file:=$(ros2 pkg prefix skyw_swarm)/share/skyw_swarm/config/formation.yaml \
+	drone_count:=3 \
+	start_client:=true \
+	client_delay:=2.0
+
+# Optional launch args
+ros2 launch skyw_swarm swarm_launch.py \
+	use_sim_time:=true \
+	log_level:=debug \
+	namespace:=swarm
+
+# Test a specific formation goal while launch is running
+ros2 action send_goal /set_formation skyw_swarm/action/SetFormation \
+"{formation_type: 'line', spacing: 2.0, altitude: 3.0, rotation: 0.0, drone_count: 3}"
+
+# Try different formations without changing YAML
+ros2 action send_goal /set_formation skyw_swarm/action/SetFormation \
+"{formation_type: 'v', spacing: 2.0, altitude: 3.0, rotation: 0.0, drone_count: 3}"

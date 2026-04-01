@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
 from px4_msgs.msg import VehicleLocalPosition
 from geometry_msgs.msg import PoseStamped
 
@@ -10,30 +11,45 @@ class PX4PoseBridge(Node):
         super().__init__('px4_pose_bridge')
         
         # Parameters
-        self.declare_parameter('drone_count', 2)
+        self.declare_parameter('drone_count', 3)
+        if not self.has_parameter('use_sim_time'):
+            self.declare_parameter('use_sim_time', False)
         drone_count = self.get_parameter('drone_count').value
         
-        self.publishers = {}
+        self.pose_publishers = {}
+        available_topics = {name for name, _types in self.get_topic_names_and_types()}
+        namespaced_available = "/px4_1/fmu/out/vehicle_local_position_v1" in available_topics
         
+        qos_profile = QoSProfile(
+            depth=10,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+        )
+
         for i in range(drone_count):
             drone_name = f"drone{i+1}"
             
-            # For first drone (no namespace)
-            if i == 0:
-                px4_topic = '/fmu/out/vehicle_local_position_v1'
+            if namespaced_available:
+                # Prefer fully namespaced topics when available (px4_1, px4_2, ...)
+                px4_topic = f'/px4_{i + 1}/fmu/out/vehicle_local_position_v1'
             else:
-                # For additional drones (px4_1, px4_2, etc.)
-                px4_topic = f'/px4_{i}/fmu/out/vehicle_local_position_v1'
+                # Fallback to legacy layout (first drone uses /fmu/out)
+                if i == 0:
+                    px4_topic = '/fmu/out/vehicle_local_position_v1'
+                else:
+                    px4_topic = f'/px4_{i}/fmu/out/vehicle_local_position_v1'
             
             # Subscribe to PX4 position
             self.create_subscription(
                 VehicleLocalPosition,
                 px4_topic,
                 lambda msg, name=drone_name: self.position_callback(msg, name),
-                10)
+                qos_profile)
+
+            self.get_logger().info(f'Subscribed to {px4_topic} for {drone_name}')
             
             # Publish as PoseStamped
-            self.publishers[drone_name] = self.create_publisher(
+            self.pose_publishers[drone_name] = self.create_publisher(
                 PoseStamped,
                 f'/{drone_name}/pose',
                 10)
@@ -50,7 +66,7 @@ class PX4PoseBridge(Node):
         pose_msg.pose.position.y = msg.y
         pose_msg.pose.position.z = msg.z
         
-        self.publishers[drone_name].publish(pose_msg)
+        self.pose_publishers[drone_name].publish(pose_msg)
 
 def main():
     rclpy.init()

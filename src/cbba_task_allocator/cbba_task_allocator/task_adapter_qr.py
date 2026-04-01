@@ -1,5 +1,4 @@
 import json
-import math
 
 import rclpy
 from rclpy.node import Node
@@ -8,8 +7,8 @@ from std_msgs.msg import String
 from skyw_interfaces.msg import Task
 from cbba_task_allocator.constants import (
     TASK_FORMATION_CHANGE,
+    TASK_REMOVE_MEMBER,
     TASK_WAIT,
-    CAP_CAMERA,
 )
 
 
@@ -20,7 +19,7 @@ class TaskAdapterQr(Node):
         self.declare_parameter('agent_id', 1)
         self.declare_parameter('input_topic', '/qr_decoded')
         self.declare_parameter('task_inbox_topic', '/cbba/task_inbox')
-        self.declare_parameter('required_agents', 3)
+        self.declare_parameter('required_agents', 2)
 
         self.agent_id = int(self.get_parameter('agent_id').value)
         self.input_topic = self.get_parameter('input_topic').value
@@ -67,6 +66,19 @@ class TaskAdapterQr(Node):
 
         gorev = data.get('gorev', {})
         formasyon = gorev.get('formasyon', {})
+
+        remove_cfg = gorev.get('uav_cikarma', {})
+        remove_active = bool(remove_cfg.get('aktif', False))
+        if not remove_active:
+            remove_active = bool(gorev.get('remove_member', False))
+
+        if remove_active:
+            task.task_type = TASK_REMOVE_MEMBER
+            task.priority = 120
+            task.required_agents = 1
+            task.required_capability = 0
+            self.task_pub.publish(task)
+            return
 
         if formasyon.get('aktif'):
             task.task_type = TASK_FORMATION_CHANGE

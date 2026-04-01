@@ -1,0 +1,91 @@
+import os
+
+# Ayarlar
+USER_HOME = os.path.expanduser("~")
+WS_DIR = os.path.join(USER_HOME, "gz-tut")
+MAP_FILE = os.path.join(WS_DIR, "map.sdf")
+PNG_DIR = os.path.join(WS_DIR, "models/qr_wall/materials/textures")
+
+# 6 Duvarın Koordinatları (Altıgen)
+wall_poses = [
+ ("wall_1", 5, 0, 1.57), 
+ ("wall_2", 2.5, 4.33, 2.62), 
+ ("wall_3", -2.5, 4.33, 3.66), 
+ ("wall_4", -5, 0, 4.71), 
+ ("wall_5", -2.5, -4.33, 5.76), 
+ ("wall_6", 2.5, -4.33, 0.52) 
+]
+
+sdf_content = """<?xml version="1.0" ?>
+<sdf version="1.8">
+ <world name="hexagon_world">
+ <physics name="1ms" type="ignored">
+ <max_step_size>0.001</max_step_size>
+ <real_time_factor>1.0</real_time_factor>
+ </physics>
+ <plugin name="gz::sim::systems::Physics" filename="gz-sim-physics-system"/>
+ <plugin name="gz::sim::systems::UserCommands" filename="gz-sim-user-commands-system"/>
+ <plugin name="gz::sim::systems::SceneBroadcaster" filename="gz-sim-scene-broadcaster-system"/>
+ <light type="directional" name="sun">
+ <scene>
+ <grid>false</grid>
+ <shadows>false</shadows> </scene>
+ <cast_shadows>true</cast_shadows>
+ <pose>0 0 10 0 0 0</pose>
+ <diffuse>0.8 0.8 0.8 1</diffuse>
+ <specular>0.2 0.2 0.2 1</specular>
+ </light>
+ <model name="ground_plane">
+ <static>true</static>
+ <link name="link">
+ <collision name="collision"><geometry><plane><normal>0 0 1</normal></plane></geometry></collision>
+ <visual name="visual">
+ <geometry><plane><normal>0 0 1</normal></plane></geometry>
+ <material><ambient>0.8 0.8 0.8 1</ambient><diffuse>0.8 0.8 0.8 1</diffuse></material>
+ </visual>
+ </link>
+ </model>
+"""
+
+for i, (name, x, y, yaw) in enumerate(wall_poses):
+ png_num = i + 1
+ png_path = os.path.join(PNG_DIR, f"qrcode{png_num}.png")
+ 
+ sdf_content += f"""
+ <model name="{name}">
+ <static>true</static>
+ <pose>{x} {y} 1 0 0 {yaw}</pose>
+ <link name="link">
+ <visual name="v_wall">
+ <geometry><box><size>3 0.1 2</size></box></geometry>
+ <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+ </visual>
+
+ <visual name="v_png">
+ <pose>0 0.07 0.5 0 0 0</pose> 
+ <geometry>
+ <box>
+ <size>0.8 0.01 0.8</size> 
+ </box>
+ </geometry>
+ <material>
+ <diffuse>1 1 1 1</diffuse>
+ <pbr>
+ <metal>
+ <albedo_map>{png_path}</albedo_map>
+ </metal>
+ </pbr>
+ </material>
+ </visual>
+
+ <collision name="c">
+ <geometry><box><size>3 0.1 2</size></box></geometry>
+ </collision>
+ </link>
+ </model>"""
+
+sdf_content += "\n </world>\n</sdf>"
+
+with open(MAP_FILE, "w") as f:
+ f.write(sdf_content)
+print(f"SDF olusturuldu: {MAP_FILE}") mapin python dosyasının kodları bunlar yarın ben yine gite bakacağım oraya da eklemeye çalışırım

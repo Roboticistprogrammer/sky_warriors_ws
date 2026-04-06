@@ -61,12 +61,12 @@ class MissionSequencer(Node):
 
         # 6 fixed locations in front of the hexagon walls (Gazebo ENU Coordinates)
         self.wall_waypoints = [
-            {'x':  3.50, 'y':  0.00, 'gz_yaw':  0.000},
-            {'x':  1.75, 'y':  3.03, 'gz_yaw':  1.047},
-            {'x': -1.75, 'y':  3.03, 'gz_yaw':  2.094},
-            {'x': -3.50, 'y':  0.00, 'gz_yaw':  3.142},
-            {'x': -1.75, 'y': -3.03, 'gz_yaw': -2.094},
-            {'x':  1.75, 'y': -3.03, 'gz_yaw': -1.047},
+            {'x':  4.00, 'y':  0.00, 'gz_yaw':  0.000},
+            {'x':  2.00, 'y':  3.46, 'gz_yaw':  1.047},
+            {'x': -2.00, 'y':  3.46, 'gz_yaw':  2.094},
+            {'x': -4.00, 'y':  0.00, 'gz_yaw':  3.142},
+            {'x': -2.00, 'y': -3.46, 'gz_yaw': -2.094},
+            {'x':  2.00, 'y': -3.46, 'gz_yaw': -1.047},
         ]
         self.current_wp_idx = 0
 

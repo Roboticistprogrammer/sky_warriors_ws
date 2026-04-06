@@ -17,9 +17,6 @@ class PX4PoseBridge(Node):
         drone_count = self.get_parameter('drone_count').value
         
         self.pose_publishers = {}
-        available_topics = {name for name, _types in self.get_topic_names_and_types()}
-        namespaced_available = "/px4_1/fmu/out/vehicle_local_position_v1" in available_topics
-        
         qos_profile = QoSProfile(
             depth=10,
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -29,15 +26,8 @@ class PX4PoseBridge(Node):
         for i in range(drone_count):
             drone_name = f"drone{i+1}"
             
-            if namespaced_available:
-                # Prefer fully namespaced topics when available (px4_1, px4_2, ...)
-                px4_topic = f'/px4_{i + 1}/fmu/out/vehicle_local_position_v1'
-            else:
-                # Fallback to legacy layout (first drone uses /fmu/out)
-                if i == 0:
-                    px4_topic = '/fmu/out/vehicle_local_position_v1'
-                else:
-                    px4_topic = f'/px4_{i}/fmu/out/vehicle_local_position_v1'
+            # Always use fully namespaced topics for multi-vehicle simulation
+            px4_topic = f'/px4_{i + 1}/fmu/out/vehicle_local_position_v1'
             
             # Subscribe to PX4 position
             self.create_subscription(

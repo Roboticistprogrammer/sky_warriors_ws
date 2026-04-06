@@ -122,12 +122,27 @@ class PX4OffboardBridge(Node):
 
             self.offboard_ticks[i] = self.offboard_ticks.get(i, 0) + 1
 
-            if self.auto_offboard and i not in self.sent_offboard and self.offboard_ticks[i] >= 10:
-                self._send_vehicle_command(i, 176, 1.0, 6.0)
+            # Delay arming/offboard by 100 ticks (5 seconds) to allow multi-instance EKF to finish booting
+            if self.auto_offboard and i not in self.sent_offboard and self.offboard_ticks[i] >= 100:
+                import subprocess
+                try:
+                    tmux_window = f"px4-sitl:{i - 1}"
+                    subprocess.run(['tmux', 'send-keys', '-t', tmux_window, 'commander mode offboard', 'Enter'], check=True)
+                    self.get_logger().info(f"Engaged offboard mode for drone {i} via tmux")
+                except Exception as e:
+                    self.get_logger().warn(f"Tmux offboard failed, falling back to VehicleCommand: {e}")
+                    self._send_vehicle_command(i, 176, 1.0, 6.0)
                 self.sent_offboard.add(i)
 
-            if self.auto_arm and i not in self.sent_arm and self.offboard_ticks[i] >= 10:
-                self._send_vehicle_command(i, 400, 1.0, 0.0)
+            if self.auto_arm and i not in self.sent_arm and self.offboard_ticks[i] >= 100:
+                import subprocess
+                try:
+                    tmux_window = f"px4-sitl:{i - 1}"
+                    subprocess.run(['tmux', 'send-keys', '-t', tmux_window, 'commander arm', 'Enter'], check=True)
+                    self.get_logger().info(f"Armed drone {i} via tmux")
+                except Exception as e:
+                    self.get_logger().warn(f"Tmux arm failed, falling back to VehicleCommand: {e}")
+                    self._send_vehicle_command(i, 400, 1.0, 0.0)
                 self.sent_arm.add(i)
 
     @staticmethod

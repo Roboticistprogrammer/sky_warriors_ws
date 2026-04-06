@@ -24,11 +24,14 @@
                 <durability>
                     <kind>TRANSIENT_LOCAL</kind>
                 </durability>
-                <history>
+            </qos>
+            <historyMemoryPolicy>DYNAMIC</historyMemoryPolicy>
+            <topic>
+                <historyQos>
                     <kind>KEEP_LAST</kind>
                     <depth>10</depth>
-                </history>
-            </qos>
+                </historyQos>
+            </topic>
         </data_writer>
         
         <!-- Subscriber QoS profile -->
@@ -40,11 +43,14 @@
                 <durability>
                     <kind>TRANSIENT_LOCAL</kind>
                 </durability>
-                <history>
+            </qos>
+            <historyMemoryPolicy>DYNAMIC</historyMemoryPolicy>
+            <topic>
+                <historyQos>
                     <kind>KEEP_LAST</kind>
                     <depth>10</depth>
-                </history>
-            </qos>
+                </historyQos>
+            </topic>
         </data_reader>
     </profiles>
 </dds>

@@ -14,6 +14,8 @@ import subprocess
 class OffboardModeHelper(Node):
     def __init__(self):
         super().__init__('offboard_helper')
+        self.declare_parameter('drone_count', 3)
+        self.declare_parameter('hover_z', -5.0)
         
         # PX4 compatible QoS profile
         qos_profile = QoSProfile(
@@ -28,7 +30,8 @@ class OffboardModeHelper(Node):
         self.setpoint_pubs = []
         self.command_pubs = []
         
-        self.nb_drones = 3
+        self.nb_drones = int(self.get_parameter('drone_count').value)
+        self.hover_z = float(self.get_parameter('hover_z').value)
         
         for i in range(1, self.nb_drones + 1):
             ns = f"/px4_{i}"
@@ -85,7 +88,7 @@ class OffboardModeHelper(Node):
     def publish_trajectory_setpoint(self):
         """Publish trajectory setpoint (hover) for all drones"""
         msg = TrajectorySetpoint()
-        msg.position = [0.0, 0.0, -2.0]  # Hover at 2m altitude (NED frame)
+        msg.position = [0.0, 0.0, self.hover_z]  # Hover at the configured altitude (NED frame)
         msg.velocity = [float('nan'), float('nan'), float('nan')]
         msg.yaw = 0.0
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)

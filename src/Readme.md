@@ -22,12 +22,16 @@ colcon build px4_msgs px4_ros_com
 
 To get started with the simulation:
 
-1. Use `skyw_bringup` package to spawn 3 drones as follows:
-cd /skyw_warriors_ws/src/skyw_bringup
-./startup.sh "/home/roboticistprogrammer/sky_warrior_ws/src/skyw_bringup/world/world.sdf"
+1. Start the sim stack manually with `skyw_simulation`:
+cd /skyw_warriors_ws
+./src/skyw_simulation/startup.sh
 
+2. Start the mission-control launch in another terminal:
+cd /skyw_warriors_ws
+source install/setup.bash
+ros2 launch skyw_control launch_simulation.py
 
-2. Go to sky_warrior_ws/src/Sim-Scenario.md to see how to test each step of competition
+3. Review [src/Sim-Scenario.md](/home/pouya/Projects/sky_warriors_ws/src/Sim-Scenario.md) for the expected phase flow and validation checklist.
 
 ## Development Status
 

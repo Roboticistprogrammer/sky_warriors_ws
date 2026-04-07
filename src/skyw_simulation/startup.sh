@@ -56,7 +56,7 @@ fi
 echo "Starting new tmux session '${session}'..."
 
 tmux new-session -d -s "${session}" -n "PX4-1" \
-	"${PX4_ENV_PREFIX}cd \"${PX4_DIR}\" && unset PX4_GZ_STANDALONE; PX4_SYS_AUTOSTART=4010 PX4_GZ_MODEL_POSE=\"-7,5,0.5\" PX4_SIM_MODEL=gz_x500_mono_cam_down \"${PX4_BIN}\" -i 1 2>&1 | grep --line-buffered -E -v 'INFO  \[mavlink\] Ignore command (401|512|521) from 255/190 to'"
+	"${PX4_ENV_PREFIX}cd \"${PX4_DIR}\" && unset PX4_GZ_STANDALONE; PX4_SYS_AUTOSTART=4010 PX4_GZ_MODEL_POSE=\"-7,5,0.5\" PX4_SIM_MODEL=gz_x500_mono_cam \"${PX4_BIN}\" -i 1 2>&1 | grep --line-buffered -E -v 'INFO  \[mavlink\] Ignore command (401|512|521) from 255/190 to'"
 
 sleep 12
 

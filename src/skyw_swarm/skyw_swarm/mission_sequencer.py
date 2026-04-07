@@ -22,7 +22,7 @@ class MissionSequencer(Node):
     High-level mission sequencer for a 3-drone QR scenario.
     - Keeps all drones in offboard by streaming setpoints.
     - Takes off all drones to a shared altitude.
-    - Sends drone1 (x500_mono_cam_down) to scan all 6 walls until a decodable QR is found.
+    - Sends drone1 (x500_mono_cam) to scan all 6 walls until a decodable QR is found.
     - Controls drone 2 & 3 as followers in a V-formation relative to drone 1.
     """
 

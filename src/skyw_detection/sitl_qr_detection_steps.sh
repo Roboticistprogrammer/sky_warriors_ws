@@ -27,7 +27,7 @@ step1() {
 step2() {
 	echo "=== Terminal 2 — workspace + requirements (camera bridge + pose bridge) ==="
 	echo "cd \"${WS}\" && source install/setup.bash"
-	echo "ros2 launch skyw_detection requirements.launch.py world_name:=skyw_hexagon model_name:=x500_mono_cam_0"
+	echo "ros2 launch skyw_detection requirements.launch.py world_name:=skyw_hexagon model_name:=x500_mono_cam_1"
 	echo ""
 	echo "=== Terminal 3 — offboard bridge (arms + offboard when setpoints flow) ==="
 	echo "cd \"${WS}\" && source install/setup.bash"

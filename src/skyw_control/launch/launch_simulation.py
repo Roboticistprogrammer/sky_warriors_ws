@@ -12,7 +12,7 @@ Run:
 
 Phase 2 behaviour
 -----------------
-* Drone 1 (x500_mono_cam_down_1): After takeoff hold, flies to each QR wall
+* Drone 1 (x500_mono_cam_1): After takeoff hold, flies to each QR wall
   waypoint and hovers while the QR detector reads the code.
 * Drones 2 & 3 (x500_2, x500_3): Kept in a safe follower/hover position
   behind the start zone until the QR payload is decoded.
@@ -63,12 +63,12 @@ def generate_launch_description():
     # ══════════════════════════════════════════════════════════════════════
 
     # ── 2a. Gazebo → ROS camera image bridge ──────────────────────────────
-    # Bridges the downward-facing mono camera on Drone 1 from Gazebo into
+    # Bridges the front-facing mono camera on Drone 1 from Gazebo into
     # ROS 2 as sensor_msgs/Image on /camera/image_raw.
     #
     # Gz topic pattern:
     #   /world/<world_name>/model/<cam_model>/link/camera_link/sensor/imager/image
-    # where cam_model = x500_mono_cam_down_1 (PX4_SIM_MODEL=gz_x500_mono_cam_down, -i 1)
+    # where cam_model = x500_mono_cam_1 (PX4_SIM_MODEL=gz_x500_mono_cam, -i 1)
     #
     # The ros_gz_bridge parameter_bridge accepts the full Gz→ROS mapping as a
     # single argument string:  <gz_topic>@<ros_type>[<gz_type>
@@ -218,11 +218,11 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'cam_model',
-            default_value='x500_mono_cam_down_1',
+            default_value='x500_mono_cam_1',
             description=(
                 'Gazebo model name for Drone 1 camera UAV. '
-                'Derived from PX4_SIM_MODEL=gz_x500_mono_cam_down and -i 1 → '
-                '"x500_mono_cam_down_1".'
+                'Derived from PX4_SIM_MODEL=gz_x500_mono_cam and -i 1 → '
+                '"x500_mono_cam_1".'
             ),
         ),
         DeclareLaunchArgument(

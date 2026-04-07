@@ -56,6 +56,6 @@ install(PROGRAMS ${PROJECT_NAME}/simulation_node.py ${PROJECT_NAME}/offboard_hel
 install(DIRECTORY launch
         DESTINATION share/${PROJECT_NAME})
 
-install(DIRECTORY config
-        DESTINATION share/${PROJECT_NAME})
+# install(DIRECTORY config
+        # DESTINATION share/${PROJECT_NAME})
 ament_package()

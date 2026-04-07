@@ -12,7 +12,7 @@ def generate_launch_description():
     )
     model_name_arg = DeclareLaunchArgument(
         "model_name",
-        default_value="x500_mono_cam_0",
+        default_value="x500_mono_cam_1",
         description="Gazebo model name for the camera UAV.",
     )
 

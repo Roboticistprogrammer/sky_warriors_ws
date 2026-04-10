@@ -5,7 +5,7 @@ from rclpy.node import Node
 from rclpy.action import ActionServer
 from skyw_swarm.action import SetFormation
 from geometry_msgs.msg import PoseStamped
-from formation_math import FORMATION_BUILDERS
+from skyw_swarm.formation_math import FORMATION_BUILDERS
 
 
 class FormationServer(Node):

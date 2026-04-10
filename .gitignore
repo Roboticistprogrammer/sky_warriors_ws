@@ -18,3 +18,9 @@ install/
 log/
 config/
 
+# PX4 dependencies (managed via vcs)
+px4_msgs/
+px4_ros_com/
+
+# Worktrees
+*.worktrees/

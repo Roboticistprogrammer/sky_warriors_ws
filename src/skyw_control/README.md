@@ -10,6 +10,16 @@ This package provides scalable multi-drone control algorithms for testing and de
 source ~/sky_warrior_ws/install/setup.bash
 ros2 launch skyw_control <launch_file>
 ```
+
+For the simulation demo, the intended flow is:
+
+```bash
+./src/skyw_simulation/startup.sh
+source install/setup.bash
+ros2 launch skyw_control launch_simulation.py
+```
+
+`startup.sh` remains responsible for Gazebo, the 3 PX4 SITL instances, and QGroundControl. `launch_simulation.py` now starts the mission side of the demo: offboard switching, arming, takeoff, and the initial stable formation behavior used by the scenario.
 ## Configuration
 
 The following configuration files control the swarm behavior:
@@ -38,15 +48,15 @@ source install/setup.bash
 ### Run
 
 ```bash
-colcon build --packages-select skyw_swarm
+colcon build --packages-select skyw_control skyw_swarm skyw_detection
 source install/setup.bash
-ros2 launch skyw_swarm swarm_mission_scenario.launch.py use_sim_time:=true
+ros2 launch skyw_control launch_simulation.py
 ```
 
 ### Useful launch overrides
 
 ```bash
-ros2 launch skyw_swarm swarm_mission_scenario.launch.py \
+ros2 launch skyw_control launch_simulation.py \
   use_sim_time:=true \
   takeoff_z:=-2.5 \
   wall_x:=5.0 wall_y:=0.0 wall_z:=-1.0 wall_yaw:=1.57

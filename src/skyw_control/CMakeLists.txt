@@ -51,11 +51,11 @@ endif ()
 ament_python_install_package(${PROJECT_NAME})
 
 # Install Py executables
-install(PROGRAMS ${PROJECT_NAME}/simulation_node.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS ${PROJECT_NAME}/simulation_node.py ${PROJECT_NAME}/offboard_helper.py DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
         DESTINATION share/${PROJECT_NAME})
 
-install(DIRECTORY config
-        DESTINATION share/${PROJECT_NAME})
+# install(DIRECTORY config
+        # DESTINATION share/${PROJECT_NAME})
 ament_package()

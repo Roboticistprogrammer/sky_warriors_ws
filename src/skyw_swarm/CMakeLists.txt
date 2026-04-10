@@ -30,6 +30,7 @@ install(PROGRAMS
   skyw_swarm/swarm_controller.py
   skyw_swarm/px4_offboard_bridge.py
   skyw_swarm/mission_sequencer.py
+  skyw_swarm/single_drone_setpoint.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

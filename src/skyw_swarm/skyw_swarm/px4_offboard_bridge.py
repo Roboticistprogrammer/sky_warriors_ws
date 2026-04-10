@@ -22,6 +22,15 @@ class PX4OffboardBridge(Node):
         self.declare_parameter('target_component', 1)
         self.declare_parameter('px4_ns_prefix', '/px4_')
         self.declare_parameter('drone_ns_prefix', '/drone')
+        self.declare_parameter('fallback_enable', False)
+        self.declare_parameter('fallback_takeoff_x', 0.0)
+        self.declare_parameter('fallback_takeoff_y', 0.0)
+        self.declare_parameter('fallback_takeoff_z', -2.5)
+        self.declare_parameter('fallback_takeoff_hold_s', 3.0)
+        self.declare_parameter('fallback_target_x', 0.0)
+        self.declare_parameter('fallback_target_y', 0.0)
+        self.declare_parameter('fallback_target_z', -2.5)
+        self.declare_parameter('fallback_target_yaw', 0.0)
         if not self.has_parameter('use_sim_time'):
             self.declare_parameter('use_sim_time', False)
 
@@ -34,12 +43,30 @@ class PX4OffboardBridge(Node):
         self.target_component = int(self.get_parameter('target_component').value)
         self.px4_ns_prefix = self._normalize_prefix(self.get_parameter('px4_ns_prefix').value)
         self.drone_ns_prefix = self._normalize_prefix(self.get_parameter('drone_ns_prefix').value)
+        self.fallback_enable = bool(self.get_parameter('fallback_enable').value)
+        self.fallback_takeoff = [
+            float(self.get_parameter('fallback_takeoff_x').value),
+            float(self.get_parameter('fallback_takeoff_y').value),
+            float(self.get_parameter('fallback_takeoff_z').value),
+        ]
+        self.fallback_takeoff_hold_s = float(
+            self.get_parameter('fallback_takeoff_hold_s').value
+        )
+        self.fallback_target = [
+            float(self.get_parameter('fallback_target_x').value),
+            float(self.get_parameter('fallback_target_y').value),
+            float(self.get_parameter('fallback_target_z').value),
+        ]
+        self.fallback_target_yaw = float(
+            self.get_parameter('fallback_target_yaw').value
+        )
 
         self.last_setpoint = {}
         self.last_setpoint_time = {}
         self.offboard_ticks = {}
         self.sent_arm = set()
         self.sent_offboard = set()
+        self.fallback_start_time = {}
 
         qos_profile = QoSProfile(
             depth=10,
@@ -94,11 +121,8 @@ class PX4OffboardBridge(Node):
         timestamp = int(now.nanoseconds / 1000)
 
         for i in range(1, self.drone_count + 1):
-            if i not in self.last_setpoint:
-                continue
-
-            age = (now - self.last_setpoint_time[i]).nanoseconds / 1e9
-            if age > self.setpoint_timeout_s:
+            setpoint, yaw = self._get_active_setpoint(i, now)
+            if setpoint is None:
                 continue
 
             offboard_msg = OffboardControlMode()
@@ -113,37 +137,50 @@ class PX4OffboardBridge(Node):
             setpoint_msg = TrajectorySetpoint()
             setpoint_msg.timestamp = timestamp
             setpoint_msg.position = [
-                float(self.last_setpoint[i].pose.position.x),
-                float(self.last_setpoint[i].pose.position.y),
-                float(self.last_setpoint[i].pose.position.z),
+                float(setpoint[0]),
+                float(setpoint[1]),
+                float(setpoint[2]),
             ]
-            setpoint_msg.yaw = self._yaw_from_quaternion(self.last_setpoint[i])
+            setpoint_msg.yaw = float(yaw)
             self.setpoint_pubs[i].publish(setpoint_msg)
 
             self.offboard_ticks[i] = self.offboard_ticks.get(i, 0) + 1
 
             # Delay arming/offboard by 100 ticks (5 seconds) to allow multi-instance EKF to finish booting
             if self.auto_offboard and i not in self.sent_offboard and self.offboard_ticks[i] >= 100:
-                import subprocess
-                try:
-                    tmux_window = f"px4-sitl:{i - 1}"
-                    subprocess.run(['tmux', 'send-keys', '-t', tmux_window, 'commander mode offboard', 'Enter'], check=True)
-                    self.get_logger().info(f"Engaged offboard mode for drone {i} via tmux")
-                except Exception as e:
-                    self.get_logger().warn(f"Tmux offboard failed, falling back to VehicleCommand: {e}")
-                    self._send_vehicle_command(i, 176, 1.0, 6.0)
+                self._send_vehicle_command(i, 176, 1.0, 6.0)
                 self.sent_offboard.add(i)
 
             if self.auto_arm and i not in self.sent_arm and self.offboard_ticks[i] >= 100:
-                import subprocess
-                try:
-                    tmux_window = f"px4-sitl:{i - 1}"
-                    subprocess.run(['tmux', 'send-keys', '-t', tmux_window, 'commander arm', 'Enter'], check=True)
-                    self.get_logger().info(f"Armed drone {i} via tmux")
-                except Exception as e:
-                    self.get_logger().warn(f"Tmux arm failed, falling back to VehicleCommand: {e}")
-                    self._send_vehicle_command(i, 400, 1.0, 0.0)
+                self._send_vehicle_command(i, 400, 1.0, 0.0)
                 self.sent_arm.add(i)
+
+    def _get_active_setpoint(self, idx, now):
+        if idx in self.last_setpoint:
+            age = (now - self.last_setpoint_time[idx]).nanoseconds / 1e9
+            if age <= self.setpoint_timeout_s:
+                setpoint = self.last_setpoint[idx]
+                yaw = self._yaw_from_quaternion(setpoint)
+                return (
+                    [
+                        setpoint.pose.position.x,
+                        setpoint.pose.position.y,
+                        setpoint.pose.position.z,
+                    ],
+                    yaw,
+                )
+
+        if not self.fallback_enable:
+            return (None, None)
+
+        if idx not in self.fallback_start_time:
+            self.fallback_start_time[idx] = now
+
+        elapsed = (now - self.fallback_start_time[idx]).nanoseconds / 1e9
+        if elapsed < self.fallback_takeoff_hold_s:
+            return (self.fallback_takeoff, 0.0)
+
+        return (self.fallback_target, self.fallback_target_yaw)
 
     @staticmethod
     def _yaw_from_quaternion(msg):

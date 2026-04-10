@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import SetParametersResult
 from geometry_msgs.msg import PoseStamped
-from formation_math import FORMATION_BUILDERS
+from skyw_swarm.formation_math import FORMATION_BUILDERS
 
 
 class SwarmController(Node):
@@ -18,6 +18,10 @@ class SwarmController(Node):
         self.declare_parameter('rotation', 0.0)
         self.declare_parameter('drone_count', 3)
         self.declare_parameter('publish_rate_hz', 20.0)
+        self.declare_parameter('leader_mode', 'pose')
+        self.declare_parameter('leader_target_x', 0.0)
+        self.declare_parameter('leader_target_y', 0.0)
+        self.declare_parameter('leader_target_z', -2.5)
         if not self.has_parameter('use_sim_time'):
             self.declare_parameter('use_sim_time', False)
 
@@ -27,6 +31,12 @@ class SwarmController(Node):
         self.rotation = float(self.get_parameter('rotation').value)
         self.drone_count = int(self.get_parameter('drone_count').value)
         self.publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
+        self.leader_mode = str(self.get_parameter('leader_mode').value)
+        self.leader_target = [
+            float(self.get_parameter('leader_target_x').value),
+            float(self.get_parameter('leader_target_y').value),
+            float(self.get_parameter('leader_target_z').value),
+        ]
 
         self.drone_positions = {}
         self.position_pubs = {}
@@ -74,6 +84,14 @@ class SwarmController(Node):
                 period = 1.0 / self.publish_rate_hz if self.publish_rate_hz > 0 else 0.05
                 self.timer.cancel()
                 self.timer = self.create_timer(period, self._publish_targets)
+            elif param.name == 'leader_mode':
+                self.leader_mode = str(param.value)
+            elif param.name == 'leader_target_x':
+                self.leader_target[0] = float(param.value)
+            elif param.name == 'leader_target_y':
+                self.leader_target[1] = float(param.value)
+            elif param.name == 'leader_target_z':
+                self.leader_target[2] = float(param.value)
 
         return SetParametersResult(successful=True)
 
@@ -99,7 +117,10 @@ class SwarmController(Node):
                 self.get_logger().warn(f"Unknown formation_type: {formation_type}")
                 return
 
-            leader = self.drone_positions.get('drone1', [0.0, 0.0, self.altitude])
+            if self.leader_mode == 'target':
+                leader = list(self.leader_target)
+            else:
+                leader = self.drone_positions.get('drone1', [0.0, 0.0, self.altitude])
             targets = FORMATION_BUILDERS[formation_type](
                 self.spacing,
                 self.drone_count,

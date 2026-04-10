@@ -22,3 +22,5 @@ config/
 px4_msgs/
 px4_ros_com/
 
+# Worktrees
+*.worktrees/

@@ -25,11 +25,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 install(PROGRAMS
   skyw_swarm/formation_server.py
   skyw_swarm/formation_client.py
-  skyw_swarm/px4_pose_bridge.py
   skyw_swarm/formation_math.py
   skyw_swarm/swarm_controller.py
   skyw_swarm/px4_offboard_bridge.py
   skyw_swarm/mission_sequencer.py
+  skyw_swarm/mission_executor.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

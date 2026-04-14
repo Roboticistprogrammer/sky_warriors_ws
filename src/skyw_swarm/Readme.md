@@ -53,9 +53,6 @@ ros2 run skyw_swarm formation_client.py --ros-args --params-file $(ros2 pkg pref
 # Launch-file workflow (recommended)
 ros2 launch skyw_swarm swarm_launch.py
 
-# Behavior-only launch (Aerostack2-style)
-ros2 launch skyw_swarm swarm_behavior.launch.py
-
 # Offboard bridge launch (PX4 setpoints)
 ros2 launch skyw_swarm swarm_offboard.launch.py
 

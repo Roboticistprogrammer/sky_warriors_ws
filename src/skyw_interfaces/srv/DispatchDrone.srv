@@ -1,0 +1,7 @@
+# Request
+string drone_id          # e.g. "uav3"
+string target_color      # "red" or "blue"
+int32 wait_seconds
+# Response
+bool success
+string message

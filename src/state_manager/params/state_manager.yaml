@@ -1,0 +1,18 @@
+state_manager_node:
+  ros__parameters:
+    uav_ids: ['uav1', 'uav2', 'uav3']
+    detach_target: 'uav2'
+    formation_name: 'triangle'
+    use_qr_trigger: true
+    qr_detach_keyword: 'detach'
+    manual_detach_cmd: 'detach'
+    manual_form_cmd: 'form_formation'
+    state_publish_period: 0.5
+    reconfig_delay: 2.0
+    log_transitions: true
+    topic_qr: '/qr_decoded'
+    topic_manual: '/manual_command'
+    topic_status: '/uav_status'
+    topic_state: '/swarm/state_change'
+    topic_detach: '/swarm/detach_command'
+    topic_formation: '/swarm/formation_command'

@@ -2,14 +2,20 @@
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    default_params = PathJoinSubstitution(
+        [FindPackageShare('skyw_swarm'), 'config', 'swarm_ids.yaml']
+    )
+
     namespace = LaunchConfiguration('namespace')
     log_level = LaunchConfiguration('log_level')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    params_file = LaunchConfiguration('params_file')
 
     drone_count = LaunchConfiguration('drone_count')
     offboard_rate_hz = LaunchConfiguration('offboard_rate_hz')
@@ -28,18 +34,21 @@ def generate_launch_description():
         name='px4_offboard_bridge',
         output='screen',
         arguments=['--ros-args', '--log-level', log_level],
-        parameters=[{
-            'use_sim_time': use_sim_time,
-            'drone_count': drone_count,
-            'offboard_rate_hz': offboard_rate_hz,
-            'setpoint_timeout_s': setpoint_timeout_s,
-            'auto_arm': auto_arm,
-            'auto_offboard': auto_offboard,
-            'target_system_start': target_system_start,
-            'target_component': target_component,
-            'px4_ns_prefix': px4_ns_prefix,
-            'drone_ns_prefix': drone_ns_prefix,
-        }],
+        parameters=[
+            params_file,
+            {
+                'use_sim_time': use_sim_time,
+                'drone_count': drone_count,
+                'offboard_rate_hz': offboard_rate_hz,
+                'setpoint_timeout_s': setpoint_timeout_s,
+                'auto_arm': auto_arm,
+                'auto_offboard': auto_offboard,
+                'target_system_start': target_system_start,
+                'target_component': target_component,
+                'px4_ns_prefix': px4_ns_prefix,
+                'drone_ns_prefix': drone_ns_prefix,
+            },
+        ],
     )
 
     return LaunchDescription([
@@ -57,6 +66,11 @@ def generate_launch_description():
             'use_sim_time',
             default_value='false',
             description='Use simulation clock if true',
+        ),
+        DeclareLaunchArgument(
+            'params_file',
+            default_value=default_params,
+            description='YAML file with swarm ids and namespace parameters',
         ),
         DeclareLaunchArgument(
             'drone_count',

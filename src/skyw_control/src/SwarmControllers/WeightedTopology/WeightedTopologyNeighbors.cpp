@@ -40,8 +40,8 @@ Neighborhood::WeightedTopologyNeighbors::WeightedTopologyNeighbors()
 void
 Neighborhood::WeightedTopologyNeighbors::vectors_to_Vector3d(const std::vector<double> &x, const std::vector<double> &y,
                                                              const std::vector<double> &z) {
-    if ((x.size(), y.size(), z.size()) == (nb_drones, nb_drones, nb_drones)) {
-        formation.reserve(nb_drones);
+    if (x.size() == nb_drones && y.size() == nb_drones && z.size() == nb_drones) {
+        formation.resize(nb_drones);
         std::transform(std::begin(x), std::end(x), std::begin(formation), [&, idx = 0u](const auto aX) mutable {
             Vector3d offset{aX, y[idx], z[idx]};
             ++idx;
